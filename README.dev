@@ -12,9 +12,11 @@ https://sites.google.com/a/chromium.org/chromedriver/downloads
 Dependencies
 ------------
 
-* conda - we use version < 4.6 due to a nasty bug in conda 4.6.x
+* conda & Python - note we use version < 4.6 due to a nasty bug in conda 4.6.x
   https://github.com/conda/conda/issues/7918
 
+  conda 4.5.13
+  Python 3.6.8 :: Anaconda, Inc.
 
 * install all the software required
 
