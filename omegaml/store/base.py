@@ -390,10 +390,10 @@ class OmegaStore(object):
         # TODO move all of the specifics to backend implementations
         if is_estimator(obj):
             backend = self.get_backend_bykind(MDREGISTRY.SKLEARN_JOBLIB)
-            return backend.put_model(obj, name, attributes)
+            return backend.put(obj, name, attributes=attributes)
         elif is_spark_mllib(obj):
             backend = self.get_backend_bykind(MDREGISTRY.SKLEARN_JOBLIB)
-            return backend.put_model(obj, name, attributes, **kwargs)
+            return backend.put(obj, name, attributes=attributes, **kwargs)
         elif is_dataframe(obj) or is_series(obj):
             groupby = kwargs.get('groupby')
             if obj.empty:
@@ -924,7 +924,7 @@ class OmegaStore(object):
         raise TypeError('cannot return kind %s as a python object' % meta.kind)
 
     def __iter__(self):
-        for f in self.list():
+        for f in self.list(include_temp=True):
             yield f
 
     def list(self, pattern=None, regexp=None, kind=None, raw=False,

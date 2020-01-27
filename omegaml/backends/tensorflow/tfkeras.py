@@ -85,5 +85,5 @@ class TensorflowKerasBackend(KerasBackend):
         fn = temp_filename()
         tpu_model.save_weights(fn, overwrite=True)
         model.load_weights(fn)
-        meta = self.put_model(model, modelname)
+        meta = self.model_store.put(model, modelname)
         return meta

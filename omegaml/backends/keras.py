@@ -87,7 +87,7 @@ class KerasBackend(BaseModelBackend):
                 valY = self.data_store.get(valY)
             keras_kwargs['validation_data'] = (valX, valY)
         history = model.fit(X, Y, **keras_kwargs)
-        meta = self.put_model(model, modelname, attributes={
+        meta = self.model_store.put(model, modelname, attributes={
             'history': serializable_history(history)
         })
         return meta

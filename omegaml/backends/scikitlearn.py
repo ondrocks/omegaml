@@ -7,12 +7,17 @@ from shutil import rmtree
 from zipfile import ZipFile, ZIP_DEFLATED
 
 import datetime
+import joblib
 from mongoengine.fields import GridFSProxy
 from sklearn.model_selection import GridSearchCV
 
 from omegaml.backends.basemodel import BaseModelBackend
 from omegaml.documents import MDREGISTRY
 from omegaml.util import reshaped, gsreshaped
+from hashlib import sha1
+
+# byte string
+_u8 = lambda t: t.encode('UTF-8', 'replace') if isinstance(t, str) else t
 
 
 class ScikitLearnBackend(BaseModelBackend):
@@ -25,45 +30,25 @@ class ScikitLearnBackend(BaseModelBackend):
         Dumps a model using joblib and packages all of joblib files into a zip
         file
         """
-        import joblib
-        lpath = tempfile.mkdtemp()
-        fname = os.path.basename(filename)
-        mklfname = os.path.join(lpath, fname)
-        zipfname = os.path.join(self.model_store.tmppath, fname)
-        joblib.dump(model, mklfname, protocol=4)
-        with ZipFile(zipfname, 'w', compression=ZIP_DEFLATED) as zipf:
-            for part in glob.glob(os.path.join(lpath, '*')):
-                zipf.write(part, os.path.basename(part))
-        rmtree(lpath)
-        return zipfname
+        joblib.dump(model, filename, protocol=4)
+        return filename
 
     def _extract_model(self, packagefname):
         """
         Loads a model using joblib from a zip file created with _package_model
         """
-        import joblib
-        lpath = tempfile.mkdtemp()
-        fname = os.path.basename(packagefname)
-        mklfname = os.path.join(lpath, fname)
-        with ZipFile(packagefname) as zipf:
-            zipf.extractall(lpath)
-        model = joblib.load(mklfname)
-        rmtree(lpath)
+        model = joblib.load(packagefname)
         return model
 
     def get_model(self, name, version=-1):
         """
         Retrieves a pre-stored model
         """
-        filename = self.model_store._get_obj_store_key(name, '.omm')
-        packagefname = os.path.join(self.model_store.tmppath, name)
+        meta = self.model_store.metadata(name)
+        outf = meta.gridfile
+        packagefname = os.path.join(self.model_store.tmppath, outf.name + '.omm')
         dirname = os.path.dirname(packagefname)
-        try:
-            os.makedirs(dirname)
-        except OSError:
-            # OSError is raised if path exists already
-            pass
-        outf = self.model_store.fs.get_version(filename, version=version)
+        os.makedirs(dirname, exist_ok=True)
         with open(packagefname, 'wb') as zipf:
             zipf.write(outf.read())
         model = self._extract_model(packagefname)
@@ -73,13 +58,16 @@ class ScikitLearnBackend(BaseModelBackend):
         """
         Packages a model using joblib and stores in GridFS
         """
-        zipfname = self._package_model(obj, name)
+        hasher = sha1()
+        hasher.update(_u8(self.model_store._get_obj_store_key(name, 'omm')))
+        filename = hasher.hexdigest()
+        zipfname = self._package_model(obj, filename)
         with open(zipfname, 'rb') as fzip:
             fileid = self.model_store.fs.put(
-                fzip, filename=self.model_store._get_obj_store_key(name, 'omm'))
-            gridfile = GridFSProxy(grid_id=fileid,
-                                   db_alias='omega',
-                                   collection_name=self.model_store.bucket)
+                fzip, filename=filename)
+        gridfile = GridFSProxy(grid_id=fileid,
+                               db_alias='omega',
+                               collection_name=self.model_store.bucket)
         return self.model_store._make_metadata(
             name=name,
             prefix=self.model_store.prefix,
