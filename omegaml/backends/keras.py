@@ -6,8 +6,6 @@ from mongoengine import GridFSProxy
 from omegaml.backends import BaseModelBackend
 from omegaml.util import temp_filename, remove_temp_filename, ensure_python_array
 
-import numpy as np
-
 
 class KerasBackend(BaseModelBackend):
     KIND = 'keras.h5'

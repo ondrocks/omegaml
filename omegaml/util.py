@@ -99,7 +99,7 @@ def settings(reload=False):
             if k.isupper() and not hasattr(defaults, k):
                 setattr(defaults, k, getattr(omdefaults, k))
     __settings = defaults
-    return __settings
+    return DefaultsContext(__settings)
 
 
 def override_settings(**kwargs):
@@ -224,7 +224,7 @@ def get_labeled_points_from_rdd(rdd):
 
 
 def unravel_index(df, row_count=0):
-    """ 
+    """
     convert index columns into dataframe columns
 
     index columns are stored in the dataframe, named '_idx#<n>_<name>'
