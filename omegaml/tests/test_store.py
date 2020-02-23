@@ -50,9 +50,11 @@ class StoreTests(unittest.TestCase):
         # package locally
         backend = backends.ScikitLearnBackend(model_store=store,
                                               data_store=store)
-        zipfname = backend._package_model(lr, 'models/foo')
+        # v2 of the ScikitLearnBackend no longer supports testing these methods
+        # test put(), get() instead
+        zipfname = backend._v1_package_model(lr, 'models/foo')
         # load it, try predicting
-        lr2 = backend._extract_model(zipfname)
+        lr2 = backend._v1_extract_model(zipfname)
         self.assertIsInstance(lr2, LogisticRegression)
         result2 = lr2.predict(X)
         self.assertTrue((result == result2).all())
@@ -352,7 +354,7 @@ class StoreTests(unittest.TestCase):
         lr = LogisticRegression(solver='liblinear', multi_class='auto')
         lr.fit(X, Y)
         # store it remote
-        store.put(lr, 'foo')
+        store.put(lr, 'foo', _kind_version='1')
         # get it back as a zipfile
         lr2file = store.get('foo', force_python=True)
         contents = lr2file.read()
@@ -749,6 +751,27 @@ class StoreTests(unittest.TestCase):
         store.put('/tmp/testfile.txt', 'myfile')
         self.assertEqual(data.encode('utf-8'), store.get('myfile').read())
 
-
-
+    def test_bucket(self):
+        # test different buckets actually separate objects by the same name
+        # -- data
+        foo_store = OmegaStore(bucket='foo')
+        bar_store = OmegaStore(bucket='bar')
+        foo_store.register_backend(PythonRawFileBackend.KIND, PythonRawFileBackend)
+        bar_store.register_backend(PythonRawFileBackend.KIND, PythonRawFileBackend)
+        foo_data = {'foo': 'bar',
+                'bax': 'fox'}
+        bar_data = {'foo': 'bax',
+                    'bax': 'foz'}
+        foo_store.put(foo_data, 'data')
+        bar_store.put(bar_data, 'data')
+        self.assertEqual(foo_store.get('data')[0], foo_data)
+        self.assertEqual(bar_store.get('data')[0], bar_data)
+        # -- files
+        foo_data = "some data"
+        file_like = BytesIO(foo_data.encode('utf-8'))
+        foo_store.put(file_like, 'myfile')
+        bar_data = "some other data"
+        file_like = BytesIO(bar_data.encode('utf-8'))
+        bar_store.put(file_like, 'myfile')
+        self.assertNotEqual(foo_store.get('myfile').read(), bar_store.get('myfile').read())
 
