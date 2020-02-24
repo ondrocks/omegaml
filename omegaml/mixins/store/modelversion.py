@@ -71,10 +71,11 @@ class ModelVersionMixin(object):
         if not self._model_version_applies():
             return super().get(name, **kwargs)
         meta = self.metadata(name, commit=commit, tag=tag, version=version, **kwargs)
-        self._ensure_versioned(meta)
-        actual_name = self._model_version_actual_name(name, tag=tag,
-                                                      commit=commit,
-                                                      version=version)
+        if meta:
+            self._ensure_versioned(meta)
+            actual_name = self._model_version_actual_name(name, tag=tag,
+                                                          commit=commit,
+                                                          version=version)
         return super().get(actual_name, **kwargs)
 
     def metadata(self, name, commit=None, tag=None, version=None, raw=False, **kwargs):

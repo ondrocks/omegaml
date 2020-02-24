@@ -66,7 +66,7 @@ class KerasBackend(BaseModelBackend):
         return result
 
     def score(
-          self, modelname, Xname, Yname, rName=True, pure_python=True,
+          self, modelname, Xname, Yname=None, rName=True, pure_python=True,
           **kwargs):
         model = self.get_model(modelname)
         X = self.data_store.get(Xname)

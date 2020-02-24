@@ -213,7 +213,7 @@ class TFEstimatorModelBackend(BaseModelBackend):
         return result
 
     def score(
-          self, modelname, Xname, Yname, rName=True, pure_python=True,
+          self, modelname, Xname, Yname=None, rName=True, pure_python=True,
           **kwargs):
         import pandas as pd
         model = self.model_store.get(modelname)

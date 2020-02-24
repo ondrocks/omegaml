@@ -209,7 +209,7 @@ class BaseModelBackend(object):
         raise NotImplementedError
 
     def score(
-          self, modelname, Xname, Yname, rName=True, pure_python=True,
+          self, modelname, Xname, Yname=None, rName=True, pure_python=True,
           **kwargs):
         """
         score using data

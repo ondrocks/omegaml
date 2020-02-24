@@ -195,7 +195,7 @@ class ScikitLearnBackendV2(ScikitLearnBackendV1):
         return meta
 
     def score(
-          self, modelname, Xname, Yname, rName=None, pure_python=True,
+          self, modelname, Xname, Yname=None, rName=None, pure_python=True,
           **kwargs):
         model = self.model_store.get(modelname)
         X = self.data_store.get(Xname)

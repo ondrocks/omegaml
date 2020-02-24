@@ -124,3 +124,10 @@ class ModelVersionMixinTests(OmegaTestMixin, TestCase):
         self.assertEqual(r1[0], 10 * 2 + 10)
         self.assertEqual(r2[0], 10 * 5 + 0)
 
+    def test_nonexistent(self):
+        store = self.om.models
+        store.register_mixin(ModelVersionMixin)
+        store.metadata('nonexistent')
+        store.get('nonexistent')
+
+
