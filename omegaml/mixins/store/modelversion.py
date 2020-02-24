@@ -34,7 +34,7 @@ class ModelVersionMixin(object):
           all functionality will continue to work as before
     """
 
-    def put(self, obj, name, tag=None, commit=None, **kwargs):
+    def put(self, obj, name, tag=None, commit=None, previous='latest', **kwargs):
         # create a new version
         meta = super().put(obj, name, **kwargs)
         if self._model_version_applies():
@@ -52,9 +52,9 @@ class ModelVersionMixin(object):
             meta.attributes['versions']['commits'] = []
             meta.attributes['versions']['tree'] = {}
 
-    def _put_version(self, meta, tag=None, commit=None):
+    def _put_version(self, meta, tag=None, commit=None, previous=None):
         version_hash = commit or self._model_version_hash(meta)
-        previous = meta.attributes['versions']['tags'].get('latest')
+        previous = meta.attributes['versions']['tags'].get(previous) or previous
         version_meta = deepcopy(meta)
         version_meta.id = None
         version_meta.name = self._model_version_store_key(meta.name, version_hash)
@@ -68,42 +68,62 @@ class ModelVersionMixin(object):
         return meta.save()
 
     def get(self, name, commit=None, tag=None, version=-1, **kwargs):
+        if not self._model_version_applies():
+            return super().get(name, **kwargs)
+        meta = self.metadata(name, commit=commit, tag=tag, version=version, **kwargs)
+        self._ensure_versioned(meta)
         actual_name = self._model_version_actual_name(name, tag=tag,
                                                       commit=commit,
                                                       version=version)
-        actual_obj = super().get(actual_name, **kwargs)
-        return actual_obj
+        return super().get(actual_name, **kwargs)
 
-    def xmetadata(self, name, commit=None, tag=None, version=-1, **kwargs):
-        meta = super().metadata(name, **kwargs)
-        if meta and 'versions' in meta.attributes:
+    def metadata(self, name, commit=None, tag=None, version=None, raw=False, **kwargs):
+        if not self._model_version_applies():
+            return super().metadata(name, **kwargs)
+        base_meta, base_commit, base_version = self._base_metadata(name, **kwargs)
+        commit = commit or base_commit
+        version = base_version or version or -1
+        if raw and base_meta and 'versions' in base_meta.attributes:
             actual_name = self._model_version_actual_name(name, tag=tag,
                                                           commit=commit,
                                                           version=version)
             meta = super().metadata(actual_name, **kwargs)
+        else:
+            meta = base_meta
         return meta
+
+    def _base_metadata(self, name, **kwargs):
+        # return actual name without version tag
+        tag = None
+        version = None
+        if '^' in name:
+            version = -1 * (name.count('^') + 1)
+            name = name.split('^')[0].split('@')[0]
+        elif '@' in name:
+            name, tag = name.split('@')
+        meta = super().metadata(name, **kwargs)
+        return meta, tag, version
 
     def _model_version_actual_name(self, name, tag=None, commit=None,
                                    version=None, **kwargs):
-        if '@' in name:
-            name, tag = name.split('@')
-            commit = tag
-        meta = super().metadata(name, **kwargs)
-        if meta is None:
-            return name
-        if tag or commit:
-            if tag and tag in meta.attributes['versions']['tags']:
-                version_hash = meta.attributes['versions']['tags'][tag]
-                actual_name = self._model_version_store_key(meta.name, version_hash)
-            elif commit:
-                actual_name = self._model_version_store_key(meta.name, commit)
+        meta, name_tag, name_version = self._base_metadata(name, **kwargs)
+        tag = tag or name_tag
+        commit = commit or tag
+        version = name_version or version or -1
+        actual_name = meta.name
+        if meta is not None and 'versions' in meta.attributes:
+            # we have an existing versioned object
+            if tag or commit:
+                if tag and tag in meta.attributes['versions']['tags']:
+                    version_hash = meta.attributes['versions']['tags'][tag]
+                    actual_name = self._model_version_store_key(meta.name, version_hash)
+                elif commit:
+                    actual_name = self._model_version_store_key(meta.name, commit)
+                else:
+                    actual_name = name
             else:
-                actual_name = name
-        else:
-            if abs(version) <= len(meta.attributes['versions']['commits']):
-                actual_name = meta.attributes['versions']['commits'][version]['name']
-            else:
-                actual_name = name
+                if version == -1 or abs(version) <= len(meta.attributes['versions']['commits']):
+                    actual_name = meta.attributes['versions']['commits'][version]['name']
         return actual_name
 
     def _model_version_hash(self, meta):

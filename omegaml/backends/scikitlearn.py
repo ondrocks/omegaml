@@ -20,6 +20,8 @@ _u8 = lambda t: t.encode('UTF-8', 'replace') if isinstance(t, str) else t
 
 
 class ScikitLearnBackendV1(BaseModelBackend):
+    KIND = MDREGISTRY.SKLEARN_JOBLIB
+
     # kept to support legacy scikit learn model serializations prior to ~scikit learn v0.18
     def _v1_package_model(self, model, filename):
         """
@@ -52,7 +54,7 @@ class ScikitLearnBackendV1(BaseModelBackend):
         rmtree(lpath)
         return model
 
-    def get_model(self, name, version=-1):
+    def _v1_get_model(self, name, version=-1):
         """
         Retrieves a pre-stored model
         """
@@ -70,7 +72,7 @@ class ScikitLearnBackendV1(BaseModelBackend):
         model = self._v1_extract_model(packagefname)
         return model
 
-    def put_model(self, obj, name, attributes=None):
+    def _v1_put_model(self, obj, name, attributes=None):
         """
         Packages a model using joblib and stores in GridFS
         """
@@ -94,69 +96,36 @@ class ScikitLearnBackendV2(ScikitLearnBackendV1):
     """
     OmegaML backend to use with ScikitLearn
     """
-    _backend_version_tag = '_om_backend_version'
-    _backend_version = '2'
-
-    def _v2_package_model(self, model, key):
+    def _package_model(self, model, key, tmpfn):
         """
         Dumps a model using joblib and packages all of joblib files into a zip
         file
         """
-        packagefname = self._tmp_packagefn(key)
-        joblib.dump(model, packagefname, protocol=4)
-        return packagefname
+        joblib.dump(model, tmpfn, protocol=4)
+        return tmpfn
 
-    def _v2_extract_model(self, infile, key):
+    def _extract_model(self, infile, key, tmpfn):
         """
         Loads a model using joblib from a zip file created with _package_model
         """
-        packagefname = self._tmp_packagefn(key)
-        with open(packagefname, 'wb') as pkgf:
+        with open(tmpfn, 'wb') as pkgf:
             pkgf.write(infile.read())
-        model = joblib.load(packagefname)
+        model = joblib.load(tmpfn)
         return model
-
-    def _tmp_packagefn(self, name):
-        filename = os.path.join(self.model_store.tmppath, name)
-        dirname = os.path.dirname(filename)
-        os.makedirs(dirname, exist_ok=True)
-        return filename
 
     def get_model(self, name, version=-1):
         """
         Retrieves a pre-stored model
         """
-
         meta = self.model_store.metadata(name)
         if self._backend_version_tag not in meta.kind_meta:
-            return super().get_model(name, version=version)
-        storekey = self.model_store.object_store_key(name, 'omm', hashed=True)
-        model = self._v2_extract_model(meta.gridfile, storekey)
-        return model
+            return super()._v1_get_model(name, version=version)
+        return super().get_model(name, version=version)
 
     def put_model(self, obj, name, attributes=None, _kind_version=None):
-        """
-        Packages a model using joblib and stores in GridFS
-        """
         if _kind_version and _kind_version != self._backend_version:
-            return super().put_model(obj, name, attributes=attributes)
-        storekey = self.model_store.object_store_key(name, 'omm', hashed=True)
-        packagefname = self._v2_package_model(obj, storekey)
-        gridfile = GridFSProxy(db_alias='omega',
-                               collection_name=self.model_store._fs_collection)
-        with open(packagefname, 'rb') as pkgf:
-            fileid = gridfile.put(pkgf, filename=storekey)
-        kind_meta = {
-            self._backend_version_tag: self._backend_version,
-        }
-        return self.model_store._make_metadata(
-            name=name,
-            prefix=self.model_store.prefix,
-            bucket=self.model_store.bucket,
-            kind=MDREGISTRY.SKLEARN_JOBLIB,
-            kind_meta=kind_meta,
-            attributes=attributes,
-            gridfile=gridfile).save()
+            return super()._v1_put_model(obj, name, attributes=attributes)
+        return super().put_model(obj, name, attributes=attributes)
 
     def predict(
           self, modelname, Xname, rName=None, pure_python=True, **kwargs):

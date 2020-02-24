@@ -19,7 +19,8 @@ class OmegaTestMixin(object):
         [drop(m, force=True) for m in om.scripts]
         self.assertListEqual(om.datasets.list(), [])
         self.assertListEqual(om.models.list(), [])
-
+        self.assertListEqual(om.jobs.list(), [])
+        self.assertListEqual(om.scripts.list(), [])
 
 def tf_in_eager_execution():
     # condition for unittest.skipIf decorator

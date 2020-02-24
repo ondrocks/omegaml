@@ -95,6 +95,7 @@ OMEGA_STORE_MIXINS = [
     'omegaml.mixins.store.virtualobj.VirtualObjectMixin',
     'omegaml.mixins.store.package.PythonPackageMixin',
     'omegaml.mixins.store.promotion.PromotionMixin',
+    'omegaml.mixins.store.modelversion.ModelVersionMixin',
 ]
 #: runtimes mixins
 OMEGA_RUNTIME_MIXINS = [

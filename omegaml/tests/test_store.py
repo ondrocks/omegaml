@@ -1,12 +1,12 @@
 from __future__ import absolute_import
 
-import unittest
-import uuid
 from unittest import skip
-from zipfile import ZipFile
 
 import gridfs
+import joblib
 import pandas as pd
+import unittest
+import uuid
 from datetime import timedelta
 from mongoengine.connection import disconnect
 from mongoengine.errors import DoesNotExist
@@ -357,9 +357,8 @@ class StoreTests(unittest.TestCase):
         store.put(lr, 'foo', _kind_version='1')
         # get it back as a zipfile
         lr2file = store.get('foo', force_python=True)
-        contents = lr2file.read()
-        with ZipFile(BytesIO(contents)) as zipf:
-            self.assertIn('foo', zipf.namelist())
+        lr_ = joblib.load(lr2file)
+        self.assertIsInstance(lr_, LogisticRegression)
 
     def test_store_with_metadata(self):
         om = OmegaStore(prefix='')

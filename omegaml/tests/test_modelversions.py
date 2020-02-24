@@ -1,5 +1,6 @@
 from unittest import TestCase
 
+import numpy as np
 from sklearn.linear_model import LinearRegression
 
 from omegaml import Omega
@@ -53,7 +54,7 @@ class ModelVersionMixinTests(OmegaTestMixin, TestCase):
         clf_ = store.get('regmodel')
         self.assertEqual(clf_.version_, 2)
 
-    def test_get_version_by_hashtag(self):
+    def test_get_version_by_attag(self):
         store = self.om.models
         store.register_mixin(ModelVersionMixin)
         clf = LinearRegression()
@@ -91,12 +92,35 @@ class ModelVersionMixinTests(OmegaTestMixin, TestCase):
         store.register_mixin(ModelVersionMixin)
         clf = LinearRegression()
         clf.version_ = 1
-        store.put(clf, 'regmodel', tag='commit1')
+        meta1 = store.put(clf, 'regmodel', tag='commit1')
         clf.version_ = 2
-        meta = store.put(clf, 'regmodel', tag='commit2')
-        meta_commit1 = store.metadata(meta.attributes['versions']['commits'][-2]['name'])
-        meta_commit2= store.metadata(meta.attributes['versions']['commits'][-1]['name'])
-        meta_ = store.metadata('regmodel@commit1')
-        self.assertEqual(meta_.id, meta_commit1.id)
-        meta_ = store.metadata('regmodel@commit2')
-        self.assertEqual(meta_.id, meta_commit2.id)
+        meta2 = store.put(clf, 'regmodel', tag='commit2')
+        self.assertEqual(meta1.id, meta2.id)
+        meta_commit1_byname = store.metadata(meta2.attributes['versions']['commits'][-2]['name'])
+        meta_commit2_byname = store.metadata(meta2.attributes['versions']['commits'][-1]['name'])
+        meta_commit1_bymeta = store.metadata('regmodel@commit1', raw=True)
+        meta_commit2_bymeta = store.metadata('regmodel@commit2', raw=True)
+        self.assertEqual(meta_commit1_bymeta.id, meta_commit1_byname.id)
+        self.assertEqual(meta_commit2_bymeta.id, meta_commit2_byname.id)
+
+    def test_via_runtime(self):
+        store = self.om.models
+        store.register_mixin(ModelVersionMixin)
+        reg = LinearRegression()
+        reg.coef_ = np.array([2])
+        reg.intercept_ = 10
+        store.put(reg, 'regmodel', tag='commit1')
+        reg.coef_ = np.array([5])
+        reg.intercept_ = 0
+        store.put(reg, 'regmodel', tag='commit2')
+        # via past version pointer
+        r1 = self.om.runtime.model('regmodel^').predict([10]).get()
+        r2 = self.om.runtime.model('regmodel').predict([10]).get()
+        self.assertEqual(r1[0], 10 * 2 + 10)
+        self.assertEqual(r2[0], 10 * 5 + 0)
+        # via version tag
+        r1 = self.om.runtime.model('regmodel@commit1').predict([10]).get()
+        r2 = self.om.runtime.model('regmodel@commit2').predict([10]).get()
+        self.assertEqual(r1[0], 10 * 2 + 10)
+        self.assertEqual(r2[0], 10 * 5 + 0)
+
