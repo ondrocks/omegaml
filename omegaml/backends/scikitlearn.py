@@ -101,7 +101,7 @@ class ScikitLearnBackendV2(ScikitLearnBackendV1):
         Dumps a model using joblib and packages all of joblib files into a zip
         file
         """
-        joblib.dump(model, tmpfn, protocol=4)
+        joblib.dump(model, tmpfn, protocol=4, compress=True)
         return tmpfn
 
     def _extract_model(self, infile, key, tmpfn):
@@ -118,7 +118,7 @@ class ScikitLearnBackendV2(ScikitLearnBackendV1):
         Retrieves a pre-stored model
         """
         meta = self.model_store.metadata(name)
-        if self._backend_version_tag not in meta.kind_meta:
+        if self._backend_version != meta.kind_meta.get(self._backend_version_tag):
             return super()._v1_get_model(name, version=version)
         return super().get_model(name, version=version)
 

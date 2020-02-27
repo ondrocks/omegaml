@@ -1,3 +1,4 @@
+from collections import defaultdict
 from copy import deepcopy
 from hashlib import sha1
 
@@ -39,44 +40,27 @@ class ModelVersionMixin(object):
         meta = super().put(obj, name, **kwargs)
         if self._model_version_applies():
             self._ensure_versioned(meta)
-            meta = self._put_version(meta, tag=tag, commit=commit)
+            meta = self._put_version(meta, tag=tag, commit=commit, previous=previous)
         return meta
-
-    def _model_version_applies(self):
-        return self.prefix.startswith('models/')
-
-    def _ensure_versioned(self, meta):
-        if 'versions' not in meta.attributes:
-            meta.attributes['versions'] = {}
-            meta.attributes['versions']['tags'] = {}
-            meta.attributes['versions']['commits'] = []
-            meta.attributes['versions']['tree'] = {}
-
-    def _put_version(self, meta, tag=None, commit=None, previous=None):
-        version_hash = commit or self._model_version_hash(meta)
-        previous = meta.attributes['versions']['tags'].get(previous) or previous
-        version_meta = deepcopy(meta)
-        version_meta.id = None
-        version_meta.name = self._model_version_store_key(meta.name, version_hash)
-        del version_meta.attributes['versions']
-        version_meta.save()
-        meta.attributes['versions']['commits'].append(dict(name=version_meta.name, ref=version_hash))
-        meta.attributes['versions']['tree'][version_hash] = previous
-        meta.attributes['versions']['tags']['latest'] = version_hash
-        if tag:
-            meta.attributes['versions']['tags'][tag] = version_hash
-        return meta.save()
 
     def get(self, name, commit=None, tag=None, version=-1, **kwargs):
         if not self._model_version_applies():
             return super().get(name, **kwargs)
         meta = self.metadata(name, commit=commit, tag=tag, version=version, **kwargs)
+        actual_name = name
         if meta:
             self._ensure_versioned(meta)
             actual_name = self._model_version_actual_name(name, tag=tag,
                                                           commit=commit,
                                                           version=version)
         return super().get(actual_name, **kwargs)
+
+    def drop(self, name, commit=None, tag=None, version=-1, force=False):
+        # TODO implement drop to support deletion of specific versions
+        if False and self._model_version_applies():
+            # this messes up the version history of the base object!
+            name = self._model_version_actual_name(name, tag=tag, commit=commit, version=version)
+        return super().drop(name, force=force)
 
     def metadata(self, name, commit=None, tag=None, version=None, raw=False, **kwargs):
         if not self._model_version_applies():
@@ -92,6 +76,22 @@ class ModelVersionMixin(object):
         else:
             meta = base_meta
         return meta
+
+    def revisions(self, name):
+        if self._model_version_applies():
+            meta = self.metadata(name)
+            versions = meta.attributes.get('versions', {})
+            commits = versions.get('commits')
+            tags = versions.get('tags')
+            commit_tags = defaultdict(list)
+            for k, v in tags.items():
+                commit_tags[v].append(k)
+            revisions = [
+                (commit['ref'], commit_tags.get(commit['ref'], ''))
+                for commit in commits
+            ]
+            return revisions
+        raise NotImplementedError
 
     def _base_metadata(self, name, **kwargs):
         # return actual name without version tag
@@ -135,3 +135,28 @@ class ModelVersionMixin(object):
 
     def _model_version_store_key(self, name, version_hash):
         return '_versions/{}/{}'.format(name, version_hash)
+
+    def _model_version_applies(self):
+        return self.prefix.startswith('models/')
+
+    def _ensure_versioned(self, meta):
+        if 'versions' not in meta.attributes:
+            meta.attributes['versions'] = {}
+            meta.attributes['versions']['tags'] = {}
+            meta.attributes['versions']['commits'] = []
+            meta.attributes['versions']['tree'] = {}
+
+    def _put_version(self, meta, tag=None, commit=None, previous=None):
+        version_hash = commit or self._model_version_hash(meta)
+        previous = meta.attributes['versions']['tags'].get(previous) or previous
+        version_meta = deepcopy(meta)
+        version_meta.id = None
+        version_meta.name = self._model_version_store_key(meta.name, version_hash)
+        del version_meta.attributes['versions']
+        version_meta.save()
+        meta.attributes['versions']['commits'].append(dict(name=version_meta.name, ref=version_hash))
+        meta.attributes['versions']['tree'][version_hash] = previous
+        meta.attributes['versions']['tags']['latest'] = version_hash
+        if tag:
+            meta.attributes['versions']['tags'][tag] = version_hash
+        return meta.save()

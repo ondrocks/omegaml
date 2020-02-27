@@ -354,9 +354,9 @@ class StoreTests(unittest.TestCase):
         lr = LogisticRegression(solver='liblinear', multi_class='auto')
         lr.fit(X, Y)
         # store it remote
-        store.put(lr, 'foo', _kind_version='1')
+        store.put(lr, 'foox', _kind_version='1')
         # get it back as a zipfile
-        lr2file = store.get('foo', force_python=True)
+        lr2file = store.get('foox', force_python=True)
         lr_ = joblib.load(lr2file)
         self.assertIsInstance(lr_, LogisticRegression)
 

@@ -130,4 +130,17 @@ class ModelVersionMixinTests(OmegaTestMixin, TestCase):
         store.metadata('nonexistent')
         store.get('nonexistent')
 
+    def test_dropversion(self):
+        store = self.om.models
+        store.register_mixin(ModelVersionMixin)
+        reg = LinearRegression()
+        reg.coef_ = np.array([2])
+        reg.intercept_ = 10
+        store.put(reg, 'regmodel', tag='commit1')
+        reg.coef_ = np.array([5])
+        reg.intercept_ = 0
+        store.put(reg, 'regmodel', tag='commit2')
+
+
+
 
